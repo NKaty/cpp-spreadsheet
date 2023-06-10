@@ -1,36 +1,85 @@
 #pragma once
 
-#include "common.h"
 #include "formula.h"
+#include "sheet.h"
 
-#include <functional>
-#include <unordered_set>
-
-class Sheet;
+#include "memory"
+#include "unordered_set"
 
 class Cell : public CellInterface {
-public:
-    Cell(Sheet& sheet);
-    ~Cell();
+ public:
+  Cell(SheetInterface &sheet);
+  ~Cell() override;
 
-    void Set(std::string text);
-    void Clear();
+  void Set(std::string text) override;
+  void Clear();
 
-    Value GetValue() const override;
-    std::string GetText() const override;
-    std::vector<Position> GetReferencedCells() const override;
+  [[nodiscard]] Value GetValue() const override;
+  [[nodiscard]] std::string GetText() const override;
 
-    bool IsReferenced() const;
+  [[nodiscard]] std::vector<Position> GetReferencedCells() const override;
 
-private:
-    class Impl;
-    class EmptyImpl;
-    class TextImpl;
-    class FormulaImpl;
+  bool IsReferenced() const;
 
-    std::unique_ptr<Impl> impl_;
+ private:
+  class Impl {
+   public:
+    virtual ~Impl() = default;
 
-    // Добавьте поля и методы для связи с таблицей, проверки циклических 
-    // зависимостей, графа зависимостей и т. д.
+    [[nodiscard]] virtual Value GetValue(const SheetInterface &sheet) const = 0;
 
+    [[nodiscard]] virtual std::string GetText() const = 0;
+
+    [[nodiscard]] virtual std::vector<Position> GetReferencedCells() const = 0;
+  };
+
+  class EmptyImpl final : public Impl {
+   public:
+    [[nodiscard]] std::string GetText() const override;
+
+    [[nodiscard]] Value GetValue(const SheetInterface &sheet) const override;
+
+    [[nodiscard]] std::vector<Position> GetReferencedCells() const override;
+  };
+
+  class TextImpl final : public Impl {
+   public:
+    explicit TextImpl(std::string text);
+
+    [[nodiscard]] std::string GetText() const override;
+
+    [[nodiscard]] Value GetValue(const SheetInterface &sheet) const override;
+
+    [[nodiscard]] std::vector<Position> GetReferencedCells() const override;
+
+   private:
+    std::string text_;
+  };
+
+  class FormulaImpl final : public Impl {
+   public:
+    explicit FormulaImpl(std::string formula);
+
+    [[nodiscard]] std::string GetText() const override;
+
+    [[nodiscard]] Value GetValue(const SheetInterface &sheet) const override;
+
+    [[nodiscard]] std::vector<Position> GetReferencedCells() const override;
+
+   private:
+    std::unique_ptr<FormulaInterface> formula_;
+  };
+
+  std::unique_ptr<Impl> impl_;
+  SheetInterface &sheet_;
+  std::unordered_set<Cell *> dependent_cells_;
+  mutable std::optional<Value> cache_;
+
+  bool HasCircularDependencies(const Impl &impl);
+
+  void ClearReferences();
+  void AddReferences();
+
+  void InvalidateCache();
+  void InvalidateDependentCellsCache();
 };
