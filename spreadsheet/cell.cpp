@@ -128,6 +128,7 @@ void Cell::InvalidateDependentCellsCache() {
   std::unordered_set<const Cell *> visited;
   for (auto cell : dependent_cells_) {
     if (visited.find(cell) == visited.end()) {
+      visited.insert(cell);
       cell->InvalidateCache();
       cell->InvalidateDependentCellsCache();
     }
